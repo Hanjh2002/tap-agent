@@ -1,6 +1,6 @@
 [project]
 name = "tap"
-version = "0.2.0"
+version = "0.3.0"
 description = "A mini coding agent for the terminal, inspired by `tau`."
 requires-python = ">=3.12"
 dependencies = [
