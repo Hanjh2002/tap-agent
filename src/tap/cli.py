@@ -1,6 +1,6 @@
 """CLI entry point — orchestrate config -> provider -> agent + harness + session.
 
-v4 changes:
+v2 changes:
 - Wire AgentHarness (instead of calling the Agent directly)
 - Wire up SessionStore; each tap run = one new session
 - Add slash commands: /sessions, /resume, /new, /help
@@ -135,7 +135,12 @@ def build_agent_and_harness(
         PlanTool(plan_state),
     ]
     registry = ToolRegistry(tools)
-    system = build_system_prompt(tools, project_root=project_root, skills=skills)
+    system = build_system_prompt(
+        tools, 
+        project_root=project_root, 
+        skills=skills,
+        language=settings.tap_language,
+        )
 
     agent = Agent(
         provider=provider,
