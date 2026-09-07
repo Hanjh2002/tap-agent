@@ -116,7 +116,7 @@ class BashTool(BaseTool):
 
         output = (
             f"exit_code: {proc.returncode}\n"
-            f"--- stdout ---\n{proc.stdout}"
+            f"--- stdout ---\n{proc.stdout}\n"
             f"--- stderr ---\n{proc.stderr}"
         )
 

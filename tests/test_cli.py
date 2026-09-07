@@ -35,6 +35,7 @@ def test_build_wires_thinking_budget(monkeypatch, tmp_path):
     fake_settings = SimpleNamespace(
         gemini_api_key="fake-key",
         tap_model="gemini-2.5-flash",
+        tap_language="auto",
         tap_thinking="high",          # -> budget 24576
         tap_max_iterations=10,
     )
@@ -54,6 +55,7 @@ def test_build_wires_thinking_budget_off(monkeypatch, tmp_path):
     fake_settings = SimpleNamespace(
         gemini_api_key="fake-key",
         tap_model="gemini-2.5-flash",
+        tap_language="auto",
         tap_thinking="off",           # -> budget 0
         tap_max_iterations=10,
     )

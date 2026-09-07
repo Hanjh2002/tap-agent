@@ -5,10 +5,8 @@ description = "A mini coding agent for the terminal, inspired by `tau`."
 requires-python = ">=3.12"
 dependencies = [
     "google-genai>=1.0.0",
-    "numpy>=2.5.2",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
-    "tensorflow>=2.21.0",
     "truststore>=0.10.4",
 ]
 

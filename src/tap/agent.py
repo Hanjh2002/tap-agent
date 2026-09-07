@@ -22,7 +22,7 @@ Agent DOESN'T know about:
 - Filesystem, subprocess
 - input(), print()
 - .env, config file
-- Session storage (only know callback)
+- Session storage (it only knows about the callback)
 """
 
 from __future__ import annotations

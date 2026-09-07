@@ -1,6 +1,6 @@
-"""Test các tool riêng lẻ (read, bash).
+"""Test for read & bash tools.
 
-v4: tools nhận project_root, chặn path traversal + dangerous cmd.
+Tools ONLY recieve project_root and reject path traversal + dangerous cmd.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def test_read_directory_returns_error(tmp_path: Path) -> None:
 
 
 def test_read_denies_path_traversal(tmp_path: Path) -> None:
-    """v4: LLM không được đọc file ngoài project_root."""
+    """LLM can NOT read files from project_root."""
     result = ReadTool(project_root=tmp_path).execute({"path": "../../etc/passwd"})
 
     assert result.ok is False

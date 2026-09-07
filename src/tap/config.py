@@ -1,7 +1,8 @@
-"""Config loader — reads from .env or environment variables.
+"""Configuration loader for `.env` files and environment variables.
 
-This is the ONLY place that reads `.env`. The Agent doesn't know Settings exists.
-The CLI loads Settings, extracts values, and passes them into the Provider/Agent via the constructor.
+This is the only module that reads `.env`. The Agent does not know about
+Settings. The CLI loads the settings and passes the required values to the
+Provider/Agent through their constructors.
 """
 
 from __future__ import annotations
@@ -12,11 +13,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from .env or env vars.
+    """Application settings loaded from .env or environment variables.
 
     Field name → env var (case-insensitive):
       gemini_api_key      → GEMINI_API_KEY
       tap_model           → TAP_MODEL
+      tap_language        → TAP_LANGUAGE
       tap_max_iterations  → TAP_MAX_ITERATIONS
       tap_thinking        → TAP_THINKING
     """
@@ -32,6 +34,7 @@ class Settings(BaseSettings):
         description="Gemini API key. Lấy tại https://aistudio.google.com/apikey",
     )
     tap_model: str = Field(default="gemini-2.5-flash")
+    tap_language: Literal["auto", "vi", "en", "ja", "ko"] = "auto"
     tap_max_iterations: int = Field(default=10, ge=1, le=50)
     tap_thinking: Literal["off", "low", "medium", "high", "dynamic"] = "dynamic"
 
@@ -42,5 +45,7 @@ THINKING_BUDGETS: dict[str, int] = {
 
 
 def thinking_budget_from_level(level: str) -> int:
-    """Map a level name -> budget int. No match -> dynamic (-1)."""
+    """Return the thinking-token budget for a level.
+    Unknown levels fall back to dynamic mode, represented by -1.
+    """
     return THINKING_BUDGETS.get(level.lower().strip(), -1)
