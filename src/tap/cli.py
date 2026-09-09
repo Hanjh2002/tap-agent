@@ -94,6 +94,7 @@ UI_TEXT = {
         "error_main": "[!] Error: {type_name}: {error}",
         "more_lines": "  ... ({remaining} more lines, open the JSONL file to view the full output)",
     },
+    
     "vi": {
         "missing_key": "[!] Không tìm thấy GEMINI_API_KEY trong môi trường hoặc file .env.",
         "enter_key_now": "    Nhập key ngay bây giờ (chỉ dùng cho phiên này),",
