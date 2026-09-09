@@ -210,6 +210,15 @@ class GeminiProvider:
                 stop_reason="error",
             )
 
+        # If finish_reason is not STOP, it's an error.
+        finish_reason = getattr(candidates[0], "finish_reason", None)
+        if finish_reason is not None and finish_reason != "STOP":
+            description = self._describe_finish_reason(finish_reason)
+            return AssistantMessage(
+                text=description or f"Gemini finished with finish_reason={finish_reason}",
+                stop_reason="error",
+            )
+
         content = candidates[0].content
         parts = getattr(content, "parts", None) or []
 
@@ -244,6 +253,36 @@ class GeminiProvider:
             stop_reason="tool_use" if tool_calls else "end_turn",
         )
 
+    # ---------- Finish-reason Handling ----------
+    def _describe_finish_reason(self, finish_reason: str | types.FinishReason) -> str | None:
+        """Return a human-readable description for a Gemini finish reason.
+
+        Gemini occasionally adds new finish reasons over time. We do not want to
+        guess or fabricate descriptions for unknown values, because that can hide
+        real lifecycle changes and make debugging harder.
+
+        For known reasons we return a friendly message. For unrecognized values we
+        fall back to None so the caller can decide whether to ignore, log, or
+        surface the raw reason without imposing assumptions.
+        """
+        fr_name = getattr(finish_reason, "name", finish_reason)
+
+        known = {
+            "SAFETY": "[Gemini blocked the response due to safety policy.]",
+            "RECITATION": "[Gemini blocked the response due to recitation policy.]",
+            "PROHIBITED_CONTENT": "[Gemini blocked the response due to prohibited content.]",
+            "SPII": "[Gemini blocked the response due to sensitive personal information.]",
+            "BLOCKLIST": "[Gemini blocked the response due to a blocklist match.]",
+            "MAX_TOKENS": "[Gemini ran out of tokens and stopped the response.]",
+        }
+
+        if fr_name in known:
+            return known[fr_name]
+
+        # Fallback for future Gemini values we do not recognize yet.
+        # Returning None keeps the caller honest instead of inventing a message.
+        return None
+        
 
 def _clean_schema_for_gemini(schema: dict) -> dict:
     """Strip JSON Schema fields Gemini doesn't accept + inline $ref.
