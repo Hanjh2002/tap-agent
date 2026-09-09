@@ -4,7 +4,7 @@ This is the shared data model that every layer knows about. The Provider must
 normalize the SDK response into an `AssistantMessage`. The Agent loop mutates
 `list[Message]` by reference.
 
-Note: `tool_calls` is a tuple because a frozen model doesn't allow mutable fields.
+Note: `tool_calls` is a tuple to keep the field immutable.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class ToolCall(BaseModel):
     id: str
     name: str
     arguments: dict  # JSON-like, the tool validates it itself via args_mode
-    # Gemini 2.5+ specific signature; must be preserved and sent back on the next turn.
+    # Gemini 2.5+ specific thought_signature; must be preserved and sent back on the next turn.
     # Other providers (OpenAI, Anthropic) don't need it → default None.
     #
     # NOTE: the signature is opaque binary (protobuf-encoded), with arbitrary byte values.
@@ -49,7 +49,7 @@ class ToolCall(BaseModel):
         if isinstance(v, str):
             return b64decode(v)
         raise TypeError(
-            f"thought_signature phải là bytes | str | None, nhận: {type(v).__name__}"
+            f"thought_signature MUST be bytes | str | None, input: {type(v).__name__}"
         )
 
 

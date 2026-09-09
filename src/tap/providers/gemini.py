@@ -1,10 +1,10 @@
 """Gemini provider adapter.
 
 Responsibilities:
-1. Convert tap `Message` → Gemini `Content` when build request
-2. Convert tap `BaseTool` → Gemini `FunctionDeclaration` (JSON schema)
-3. Parse Gemini response → tap `AssistantMessage`
-4. Normalize errors
+1. Convert a tap `Message` to Gemini `Content` when building a request.
+2. Convert a tap `BaseTool` to a Gemini `FunctionDeclaration` with a JSON schema.
+3. Parse a Gemini response into a tap `AssistantMessage`.
+4. Normalize errors.
 
 Reference SDK: google-genai (new SDK, not the old google-generativeai).
 Docs: https://ai.google.dev/gemini-api/docs/function-calling
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from tap.tools.base import BaseTool
 
 class GeminiProviderError(RuntimeError):
-    """A normalized Gemini request/response error"""
+    """A normalized Gemini request/response error."""
 
 class GeminiProvider:
     """Provider adapter for Google Gemini."""
@@ -54,11 +54,19 @@ class GeminiProvider:
         self._last_call = 0.0
 
     def _throttle(self) -> None:
+        # Skip throttling if no minimum interval is set (<= 0)
         if self._min_interval <= 0:
             return
+
+        # Calculate seconds elapsed since the last call
+        # time.monotonic() is used to stay safe from system clock changes
         elapsed = time.monotonic() - self._last_call
+
+        # Sleep if the elapsed time is less than the minimum interval
         if elapsed < self._min_interval:
             time.sleep(self._min_interval - elapsed)
+
+        # Update the timestamp for the current call
         self._last_call = time.monotonic()
 
     def generate(
@@ -67,7 +75,7 @@ class GeminiProvider:
         system: str,
         messages: list[Message],
         tools: list["BaseTool"],
-    ) -> AssistantMessage:
+    ) -> AssistantMessage:   
     # Build contents + config ONCE, outside the loop — retries don't rebuild them.
         contents = self._messages_to_contents(messages)
         config = types.GenerateContentConfig(
@@ -85,6 +93,7 @@ class GeminiProvider:
                     config=config,
                 )
                 return self._parse_response(response)
+            
             except (errors.APIError, TimeoutError) as exc:
                 # Transient errors are worth retrying:
                 #  - 429: rate limit
@@ -93,14 +102,16 @@ class GeminiProvider:
                 RETRYABLE_CODES = {429, 500, 502, 503, 504}
                 is_transient = (
                     isinstance(exc, TimeoutError)
-                    or (isinstance(exc, errors.APIError) and exc.code in RETRYABLE_CODES)
+                    or (isinstance(exc, errors.APIError) 
+                        and exc.code in RETRYABLE_CODES)
                 )
                 if is_transient and attempt <= self._max_retries:
                     # Backoff: 1s, 2s, 4s, 8s, 16s + jitter to avoid synchronized retries.
                     delay = (2 ** (attempt - 1)) + random.uniform(0.1, 0.5)
                     time.sleep(delay)
                     continue
-                # Not a 429, or out of retries → normalize and re-raise to the Agent.
+                # The error is not retryable, or all retries have been exhausted.
+                # Normalize it and re-raise it for the Agent.
                 raise GeminiProviderError(f"Gemini request failed: {exc}") from exc
 
         # Never reached (the loop always returns or raises), but here so the type
@@ -108,8 +119,9 @@ class GeminiProvider:
         raise GeminiProviderError("Max retries exceeded")
 
     def _build_thinking_config(self) -> "types.ThinkingConfig":
-        """budget==0 disables thinking; ==-1 dynamic; >0 caps thinking tokens.
-        When enabled, include_thoughts=True to get the reasoning summary for display."""
+        """A budget of 0 disables thinking, -1 enables dynamic thinking, and a positive
+        value caps the number of thinking tokens. When thinking is enabled,
+        include_thoughts=True requests a reasoning summary for display."""
         if self._thinking_budget == 0:
             return types.ThinkingConfig(include_thoughts=False, thinking_budget=0)
         return types.ThinkingConfig(
@@ -119,8 +131,10 @@ class GeminiProvider:
 
     # ---------- Request building ----------
 
-    def _messages_to_contents(self, messages: list[Message]) -> list[types.Content]:
-        """Convert tap messages → Gemini Content list.
+    def _messages_to_contents(
+            self, messages: list[Message]
+        ) -> list[types.Content]:
+        """Convert tap messages → list of Gemini Content objects.
 
         Mapping:
           UserMessage       → Content(role="user", parts=[Part(text=...)])
@@ -141,9 +155,9 @@ class GeminiProvider:
                 if msg.text:
                     parts.append(types.Part(text=msg.text))
                 for call in msg.tool_calls:
-                    # Build function_call part
-                    # Gemini 2.5+ requires thought_signature to be sent back
-                    # together with the function_call, otherwise it raises INVALID_ARGUMENT
+                    # Build the function_call part
+                    # Gemini 2.5+ requires thought_signature to be sent back together with the
+                    # function_call; otherwise, it raises INVALID_ARGUMENT.
                     part_kwargs: dict = {
                         "function_call": types.FunctionCall(
                             name=call.name,
@@ -153,13 +167,14 @@ class GeminiProvider:
                     if call.thought_signature is not None:
                         part_kwargs["thought_signature"] = call.thought_signature
                     parts.append(types.Part(**part_kwargs))
-                # Gemini requires content to have at least one part
+
+                # Gemini requires each content object to contain at least one part
                 if not parts:
                     parts.append(types.Part(text=""))
                 contents.append(types.Content(role="model", parts=parts))
 
             elif isinstance(msg, ToolResultMessage):
-                # function_response goes back to the model under role="user"
+                # Send the function response back to the model with role="user"
                 contents.append(types.Content(
                     role="user",
                     parts=[types.Part(
@@ -186,12 +201,21 @@ class GeminiProvider:
     # ---------- Response parsing ----------
 
     def _parse_response(self, response: Any) -> AssistantMessage:
-        # Extract text và function_calls từ Gemini response.
+        # Extract text and function_calls from Gemini response.
         # Defensive: the response may have no candidates if it was blocked
         candidates = getattr(response, "candidates", None) or []
         if not candidates:
             return AssistantMessage(
-                text="[Gemini không trả về candidate nào — có thể bị filter]",
+                text="[Gemini returned no candidates; the response may have been blocked by a safety filter]",
+                stop_reason="error",
+            )
+
+        # If finish_reason is not STOP, it's an error.
+        finish_reason = getattr(candidates[0], "finish_reason", None)
+        if finish_reason is not None and finish_reason != "STOP":
+            description = self._describe_finish_reason(finish_reason)
+            return AssistantMessage(
+                text=description or f"Gemini finished with finish_reason={finish_reason}",
                 stop_reason="error",
             )
 
@@ -203,7 +227,7 @@ class GeminiProvider:
         tool_calls: list[ToolCall] = []
 
         for i, part in enumerate(parts):
-            # part.thought=True -> this is a REASONING summary, not the answer.
+            # part.thought=True -> this is a REASONING summary, not the final answer.
             text = getattr(part, "text", None)
             if text:
                 if getattr(part, "thought", False):
@@ -229,6 +253,36 @@ class GeminiProvider:
             stop_reason="tool_use" if tool_calls else "end_turn",
         )
 
+    # ---------- Finish-reason Handling ----------
+    def _describe_finish_reason(self, finish_reason: str | types.FinishReason) -> str | None:
+        """Return a human-readable description for a Gemini finish reason.
+
+        Gemini occasionally adds new finish reasons over time. We do not want to
+        guess or fabricate descriptions for unknown values, because that can hide
+        real lifecycle changes and make debugging harder.
+
+        For known reasons we return a friendly message. For unrecognized values we
+        fall back to None so the caller can decide whether to ignore, log, or
+        surface the raw reason without imposing assumptions.
+        """
+        fr_name = getattr(finish_reason, "name", finish_reason)
+
+        known = {
+            "SAFETY": "[Gemini blocked the response due to safety policy.]",
+            "RECITATION": "[Gemini blocked the response due to recitation policy.]",
+            "PROHIBITED_CONTENT": "[Gemini blocked the response due to prohibited content.]",
+            "SPII": "[Gemini blocked the response due to sensitive personal information.]",
+            "BLOCKLIST": "[Gemini blocked the response due to a blocklist match.]",
+            "MAX_TOKENS": "[Gemini ran out of tokens and stopped the response.]",
+        }
+
+        if fr_name in known:
+            return known[fr_name]
+
+        # Fallback for future Gemini values we do not recognize yet.
+        # Returning None keeps the caller honest instead of inventing a message.
+        return None
+        
 
 def _clean_schema_for_gemini(schema: dict) -> dict:
     """Strip JSON Schema fields Gemini doesn't accept + inline $ref.

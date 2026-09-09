@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     )
     tap_model: str = Field(default="gemini-2.5-flash")
     tap_language: Literal["auto", "vi", "en", "ja", "ko"] = "auto"
+    tap_ui_language: Literal["en", "vi"] = "en"
     tap_max_iterations: int = Field(default=10, ge=1, le=50)
     tap_thinking: Literal["off", "low", "medium", "high", "dynamic"] = "dynamic"
 
