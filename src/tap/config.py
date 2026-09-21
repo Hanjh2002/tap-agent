@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     Field name → env var (case-insensitive):
       gemini_api_key      → GEMINI_API_KEY
       tap_model           → TAP_MODEL
+      tap_ui_language     → TAP_UI_LANGUAGE
       tap_language        → TAP_LANGUAGE
       tap_max_iterations  → TAP_MAX_ITERATIONS
       tap_thinking        → TAP_THINKING
@@ -31,11 +32,11 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = Field(
         ...,
-        description="Gemini API key. Lấy tại https://aistudio.google.com/apikey",
+        description="Gemini API key. Get key at: https://aistudio.google.com/apikey",
     )
     tap_model: str = Field(default="gemini-2.5-flash")
-    tap_language: Literal["auto", "vi", "en", "ja", "ko"] = "auto"
     tap_ui_language: Literal["en", "vi"] = "en"
+    tap_language: Literal["auto", "vi", "en", "ja", "ko"] = "auto"
     tap_max_iterations: int = Field(default=10, ge=1, le=50)
     tap_thinking: Literal["off", "low", "medium", "high", "dynamic"] = "dynamic"
 

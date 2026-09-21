@@ -1,19 +1,18 @@
-"""Test AgentHarness — drive Agent generator, execute tool.
+"""Tests for AgentHarness: drive the agent generator and execute tools.
 
-Test 2 tầng:
-1. Với real Agent + fake executor
-2. Với fake Agent generator + real executor (unit test cho Harness)
+Covers two layers:
+1. Real Agent + fake executor
+2. Fake agent generator + real executor (unit test for Harness)
+
+AgentHarness handles Ctrl+C while a tool is running.
 """
 
 from __future__ import annotations
 
-from collections.abc import Generator
+import pytest
 
 from tap.agent import Agent
 from tap.events import (
-    AgentEvent,
-    AgentFinishEvent,
-    LoadingEvent,
     ToolCallEndEvent,
     ToolCallStartEvent,
 )
@@ -31,7 +30,7 @@ class FakeProvider:
 
 
 def test_harness_calls_executor_for_each_tool_call() -> None:
-    """Executor phải được gọi mỗi khi Agent yield ToolCallStartEvent."""
+    """The executor must be called each time the agent yields a ToolCallStartEvent."""
     executor_calls = []
 
     def executor(name: str, args: dict) -> ToolResult:
@@ -60,7 +59,7 @@ def test_harness_calls_executor_for_each_tool_call() -> None:
 
 
 def test_harness_wraps_executor_exception_as_ok_false() -> None:
-    """Nếu executor raise, Harness bắt và biến thành ok=False (defensive)."""
+    """If the executor raises, Harness catches it and converts it to ok=False."""
     def crashing_executor(name, args):
         raise RuntimeError("boom in executor")
 
@@ -80,7 +79,7 @@ def test_harness_wraps_executor_exception_as_ok_false() -> None:
     assert len(tool_ends) == 1
     assert tool_ends[0].ok is False
 
-    # Agent thấy tool_result với ok=False
+    # The agent sees a tool_result with ok=False
     msgs = agent.messages
     tool_result_msg = next(m for m in msgs if m.role == "tool")
     assert tool_result_msg.ok is False
@@ -88,7 +87,7 @@ def test_harness_wraps_executor_exception_as_ok_false() -> None:
 
 
 def test_harness_forwards_all_events() -> None:
-    """Events không phải tool_call_start cũng phải forward, không nuốt."""
+    """Non-tool-call events must also be forwarded without being swallowed."""
     provider = FakeProvider([
         AssistantMessage(text="hi", stop_reason="end_turn"),
     ])
@@ -107,10 +106,10 @@ def test_harness_forwards_all_events() -> None:
 
 
 def test_harness_can_wrap_executor_with_confirmation() -> None:
-    """Demo pattern: wrap executor để thêm behavior (confirmation, logging).
+    """Demo pattern: wrap the executor to add behavior (confirmation, logging).
 
-    Đây là lợi ích chính của việc tách Harness khỏi Agent — không đụng
-    Agent cũng thêm được confirmation.
+    This is the key benefit of separating Harness from Agent: we can add
+    confirmation or logging without touching the agent itself.
     """
     inner_executor = lambda n, a: ToolResult(output="did it", ok=True)
 
@@ -133,3 +132,28 @@ def test_harness_can_wrap_executor_with_confirmation() -> None:
     list(harness.chat("go"))
 
     assert call_log == [("foo", {"a": 1})]
+
+class _OneToolCallProvider:
+    """Return a single assistant turn requesting exactly one tool call."""
+    def generate(self, *, system, messages, tools) -> AssistantMessage:
+        return AssistantMessage(
+            tool_calls=(ToolCall(id="c1", name="read", arguments={"path": "x"}),),
+            stop_reason="tool_use",
+        )
+
+
+def test_keyboard_interrupt_mid_tool_leaves_no_orphans(assert_no_orphaned_tool_calls) -> None:
+    agent = Agent(provider=_OneToolCallProvider(), tools=[], system="")
+
+    def _interrupting_executor(name: str, arguments: dict) -> ToolResult:
+        raise KeyboardInterrupt
+
+    harness = AgentHarness(agent=agent, tool_executor=_interrupting_executor)
+
+    # Ctrl+C must still propagate — the harness repairs the transcript but does not
+    # swallow the interrupt.
+    with pytest.raises(KeyboardInterrupt):
+        list(harness.chat("read the file"))
+
+    # ...and the transcript remains consistent so the next turn is still valid.
+    assert_no_orphaned_tool_calls(agent.messages)

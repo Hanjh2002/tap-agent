@@ -1,7 +1,9 @@
 """Test Settings — verify loading from environment variables."""
 
 from __future__ import annotations
+
 import pytest
+
 from tap.config import Settings
 
 def test_settings_loads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
