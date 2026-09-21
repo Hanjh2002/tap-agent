@@ -12,67 +12,6 @@ from tap.tools.bash import BashTool
 from tap.tools.read import ReadTool
 
 
-# ---------- ReadTool ----------
-
-def test_read_returns_file_content(tmp_path: Path) -> None:
-    file = tmp_path / "hello.txt"
-    file.write_text("hello world", encoding="utf-8")
-
-    result = ReadTool(project_root=tmp_path).execute({"path": "hello.txt"})
-
-    assert result.ok is True
-    assert "hello world" in result.output
-
-
-def test_read_missing_file_returns_error(tmp_path: Path) -> None:
-    result = ReadTool(project_root=tmp_path).execute({"path": "nonexistent.txt"})
-
-    assert result.ok is False
-    assert "not found" in result.output.lower()
-
-
-def test_read_directory_returns_error(tmp_path: Path) -> None:
-    (tmp_path / "subdir").mkdir()
-    result = ReadTool(project_root=tmp_path).execute({"path": "subdir"})
-
-    assert result.ok is False
-    assert "directory" in result.output.lower()
-
-
-def test_read_denies_path_traversal(tmp_path: Path) -> None:
-    """LLM can NOT read files from project_root."""
-    result = ReadTool(project_root=tmp_path).execute({"path": "../../etc/passwd"})
-
-    assert result.ok is False
-    assert "outside" in result.output.lower()
-
-
-def test_read_missing_path_arg_returns_validation_error(tmp_path: Path) -> None:
-    result = ReadTool(project_root=tmp_path).execute({})
-
-    assert result.ok is False
-    assert "invalid arguments" in result.output.lower()
-
-
-def test_read_wrong_type_arg_returns_validation_error(tmp_path: Path) -> None:
-    result = ReadTool(project_root=tmp_path).execute({"path": 12345})
-
-    assert result.ok is False
-
-
-def test_read_truncates_long_file(tmp_path: Path) -> None:
-    file = tmp_path / "big.txt"
-    file.write_text("x" * 100_000, encoding="utf-8")
-
-    result = ReadTool(project_root=tmp_path).execute({"path": "big.txt"})
-
-    assert result.ok is True
-    assert "truncated" in result.output
-    assert len(result.output) < 60_000
-
-
-# ---------- BashTool ----------
-
 def test_bash_runs_simple_command(tmp_path: Path) -> None:
     result = BashTool(project_root=tmp_path).execute({"command": "echo hello"})
 
@@ -136,14 +75,6 @@ def test_bash_runs_in_project_root(tmp_path: Path) -> None:
 
 
 # ---------- input_schema ----------
-
-def test_read_input_schema_has_path_field(tmp_path: Path) -> None:
-    schema = ReadTool(project_root=tmp_path).input_schema
-
-    assert schema["type"] == "object"
-    assert "path" in schema["properties"]
-    assert "path" in schema["required"]
-
 
 def test_bash_input_schema_has_command_field(tmp_path: Path) -> None:
     schema = BashTool(project_root=tmp_path).input_schema

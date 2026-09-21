@@ -110,7 +110,7 @@ class Agent:
             -> ToolCallEndEvent
             -> (repeat)
             -> AgentFinishEvent (normal termination)
-            HOẶC AgentErrorEvent (error)
+            OR AgentErrorEvent (error)
 
         Loop stops when:
         - Assistant stops calling tools (end_turn) -> AgentFinishEvent

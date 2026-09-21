@@ -22,4 +22,4 @@ uv.lock.local
 # not important
 .tap-sessions
 cnn.py
-text.md
+check.py
