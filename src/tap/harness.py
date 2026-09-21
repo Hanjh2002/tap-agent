@@ -50,17 +50,28 @@ class AgentHarness:
         gen = self._agent.chat(user_input)
         to_send: ToolResult | None = None
 
-        while True:
-            try:
-                event = gen.send(to_send)
-            except StopIteration:
-                return
+        try:
+            while True:
+                try:
+                    event = gen.send(to_send)
+                except StopIteration:
+                    return
 
-            yield event
-            to_send = None
+                yield event
+                to_send = None
 
-            if isinstance(event, ToolCallStartEvent):
-                to_send = self._safe_execute(event.tool_name, event.arguments)
+                if isinstance(event, ToolCallStartEvent):
+                    to_send = self._safe_execute(event.tool_name, event.arguments)
+        finally:
+            # Lượt đang kết thúc — bình thường, HOẶC do Ctrl+C. KeyboardInterrupt
+            # là BaseException nên lọt qua `except Exception` của _safe_execute rồi
+            # unwind qua đây; còn nếu Ctrl+C rơi đúng lúc ta đang treo ở `yield
+            # event`, CLI sẽ close ta và GeneratorExit unwind qua đây thay thế.
+            # Cả hai đường: transcript có thể còn assistant message với tool_calls
+            # thiếu result. Hàn lại cho lượt SAU hợp lệ, rồi dẹp agent generator.
+            # No-op trên đường bình thường.
+            self._agent.cancel_pending_tool_calls()
+            gen.close()
 
     def _safe_execute(self, name: str, arguments: dict) -> ToolResult:
         """Executor must not raise, but being defensive is reasonable."""

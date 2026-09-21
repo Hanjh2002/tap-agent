@@ -90,6 +90,40 @@ class Agent:
         """Swap the callback — used when rotating sessions (one file per session)."""
         self._on_message = callback or (lambda _m: None)
 
+    def cancel_pending_tool_calls(self) -> None:
+        """Đắp một ToolResult 'cancelled' cho MỌI tool_call trong transcript
+        chưa có ToolResultMessage khớp.
+
+        Gọi khi một lượt bị ngắt (Ctrl+C) sau khi assistant message mang
+        tool_calls đã được append nhưng chưa kịp có đủ result. Một function_call
+        mồ côi (có call, thiếu response) khiến provider từ chối request KẾ TIẾP
+        (Gemini: INVALID_ARGUMENT), nên ta hàn transcript lại ở đây.
+
+        Idempotent: không có mồ côi thì không làm gì → an toàn để gọi ở mọi
+        đường thoát của lượt.
+        """
+        resolved: set[str] = {
+            m.tool_call_id
+            for m in self._messages
+            if isinstance(m, ToolResultMessage)
+        }
+        # Gom trước, KHÔNG vừa duyệt self._messages vừa append vào nó.
+        orphans = [
+            call
+            for msg in self._messages
+            for call in getattr(msg, "tool_calls", None) or ()
+            if call.id not in resolved
+        ]
+        for call in orphans:
+            cancelled = ToolResultMessage(
+                tool_call_id=call.id,
+                name=call.name,
+                content="cancelled by user",
+                ok=False,
+            )
+            self._messages.append(cancelled)
+            self._on_message(cancelled)
+
     def chat(
         self, user_input: str
     ) -> Generator[AgentEvent, ToolResult | None, None]:
@@ -187,5 +221,5 @@ class Agent:
                 yield ToolCallEndEvent(tool_name=call.name, ok=result.ok)
 
         yield AgentErrorEvent(
-            message=f"Đạt max_iterations={self._max_iter}, dừng loop"
+            message=f"Reached max_iterations={self._max_iter}, stop loop"
         )

@@ -1,8 +1,9 @@
-"""Test Agent loop dùng FakeProvider — không cần API key, không gọi mạng.
+"""Tests for the agent loop using a fake provider with no API key or network calls.
 
-v4: Agent.chat() giờ là generator có .send() protocol. Test drive Agent
-qua AgentHarness (natural way) hoặc manual .send() (khi test protocol
-violation).
+- Agent.chat() now behaves like a generator that follows the .send() protocol.
+  Tests drive the agent through AgentHarness (the natural path) or a manual
+  .send() call when checking protocol violations.
+- Covers transcript repair when a turn is interrupted mid-flight.
 """
 
 from __future__ import annotations
@@ -17,7 +18,14 @@ from tap.events import (
     ToolCallStartEvent,
 )
 from tap.harness import AgentHarness
-from tap.messages import AssistantMessage, Message, ToolCall
+from tap.messages import (
+    AssistantMessage,
+    ToolCall,
+    ToolResultMessage,
+    UserMessage,
+    Message,
+)
+
 from tap.tools.base import BaseTool, ToolResult
 from tap.tools.registry import ToolRegistry
 
@@ -25,7 +33,7 @@ from tap.tools.registry import ToolRegistry
 # ---------- FakeProvider ----------
 
 class FakeProvider:
-    """Provider giả — trả về scripted responses theo thứ tự."""
+    """A fake provider that returns scripted responses in order."""
 
     def __init__(self, scripted_responses: list[AssistantMessage]):
         self._responses = list(scripted_responses)
@@ -54,6 +62,60 @@ class EchoTool(BaseTool):
     def _run(self, args: EchoArgs) -> ToolResult:
         return ToolResult(output=f"ECHO: {args.text}")
 
+# ----------Stub Provider----------
+class _StubProvider:
+    """The agent keeps a provider, but these tests do not call generate()."""
+
+    def generate(self, *, system, messages, tools):  # pragma: no cover
+        raise AssertionError("generate should not be called in this test")
+
+
+def _make_agent() -> Agent:
+    return Agent(provider=_StubProvider(), tools=[], system="")
+
+
+def test_cancel_pending_fills_orphaned_tool_calls(assert_no_orphaned_tool_calls) -> None:
+    agent = _make_agent()
+    agent.load_messages([
+        UserMessage(content="do two things"),
+        AssistantMessage(
+            tool_calls=(
+                ToolCall(id="c1", name="read", arguments={}),
+                ToolCall(id="c2", name="bash", arguments={}),
+            ),
+            stop_reason="tool_use",
+        ),
+        ToolResultMessage(tool_call_id="c1", name="read", content="ok"),
+        # c2 has no result yet -> orphaned call (simulating Ctrl+C mid-turn)
+    ])
+
+    agent.cancel_pending_tool_calls()
+
+    assert_no_orphaned_tool_calls(agent.messages)
+    c2_result = next(
+        m for m in agent.messages
+        if isinstance(m, ToolResultMessage) and m.tool_call_id == "c2"
+    )
+    assert c2_result.ok is False
+    assert c2_result.content == "cancelled by user"
+
+
+def test_cancel_pending_is_noop_when_nothing_orphaned(assert_no_orphaned_tool_calls) -> None:
+    agent = _make_agent()
+    agent.load_messages([
+        UserMessage(content="one thing"),
+        AssistantMessage(
+            tool_calls=(ToolCall(id="c1", name="read", arguments={}),),
+            stop_reason="tool_use",
+        ),
+        ToolResultMessage(tool_call_id="c1", name="read", content="ok"),
+    ])
+    before = len(agent.messages)
+
+    agent.cancel_pending_tool_calls()
+
+    assert len(agent.messages) == before  # không đắp thêm gì
+    assert_no_orphaned_tool_calls(agent.messages)
 
 # ---------- Helpers ----------
 
@@ -274,7 +336,6 @@ def test_agent_load_messages_does_not_trigger_callback() -> None:
         on_message=captured.append,
     )
 
-    from tap.messages import UserMessage
     agent.load_messages([UserMessage(content="old message")])
 
     assert captured == []
