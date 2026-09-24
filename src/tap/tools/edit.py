@@ -128,7 +128,6 @@ def apply_edits(original: str, edits: list[Edit]) -> str:
     # Apply replacements from left to right so earlier edits do not shift the later
     # positions relative to the original string.
     spans.sort(key=lambda span: span[0])
-    print(spans)
 
     # Rebuild the final text by copying untouched content between replacements and
     # inserting each replacement in place.

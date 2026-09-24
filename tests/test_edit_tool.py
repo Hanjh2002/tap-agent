@@ -243,3 +243,13 @@ def test_multiple_valid_edits_all_applied(tmp_path: Path) -> None:
 
     assert result.ok is True
     assert path.read_text() == "XYghi"
+
+def test_apply_edits_prints_nothing_to_stdout(capsys) -> None:
+    """apply_edits should not print anything to stdout (to avoid debug logs)."""
+    out = apply_edits(
+        "alpha\nbeta\n", 
+        [Edit(old="alpha", new="A"), Edit(old="beta", new="B")])
+    
+    assert out == "A\nB\n"
+    captured = capsys.readouterr()
+    assert captured.out == "", f"apply_edits should not print to stdout: {captured.out!r}"
