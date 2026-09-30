@@ -2,6 +2,17 @@
 
 All notable changes to `tap` are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **`/config` slash command.** Prints each setting's effective value and its source (`env var`, `.env`, `entered this session`, or `default`) plus the path of the `.env` being read. The API key is shown as its last 4 characters only.
+
+### Changed
+- The reply-language prompt (`TAP_LANGUAGE`) is now asked together with the key/model prompts, i.e. only when `GEMINI_API_KEY` is missing — no longer on every run. Previously it ignored a `TAP_LANGUAGE` set in `.env` (pydantic-settings does not export `.env` into `os.environ`) and the answer then overrode the `.env` value.
+
+### Removed
+- **CLI UI language (`TAP_UI_LANGUAGE`, `--ui-language`, `UI_TEXT`/`ui_text()`).** CLI strings are English only again; the startup "Select UI language" prompt is gone. The agent's reply language is still configurable via `TAP_LANGUAGE`.
+
 ## [0.4.0] 
 
 ### Added

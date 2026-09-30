@@ -59,12 +59,11 @@ All settings are read from `.env` (or real environment variables) via `Settings`
 |---|---|---|
 | `GEMINI_API_KEY` | *(required)* | Gemini API key — get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | `TAP_MODEL` | `gemini-2.5-flash` | Gemini model to use |
-| `TAP_UI_LANGUAGE` | `en` | CLI interface language: `en` \| `vi` |
 | `TAP_LANGUAGE` | `auto` | Agent reply language: `auto` \| `vi` \| `en` \| `ja` \| `ko` |
 | `TAP_MAX_ITERATIONS` | `10` | Max tool-call loop iterations per turn (1–50) |
 | `TAP_THINKING` | `dynamic` | Gemini thinking level: `off` \| `low` \| `medium` \| `high` \| `dynamic` |
 
-If `GEMINI_API_KEY` (or `TAP_MODEL`/`TAP_LANGUAGE`/`TAP_UI_LANGUAGE`) is missing, the CLI prompts for it interactively on first run instead of failing outright.
+`.env` is read from the directory you run `tap` in, so each repo keeps its own config (and its own API key). If `GEMINI_API_KEY` is missing, the CLI prompts for the key, the model and the reply language for that run instead of failing outright. Type `/config` in the REPL to see each setting's effective value and where it comes from (env var, `.env`, entered this session, or default).
 
 ---
 

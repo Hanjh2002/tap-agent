@@ -91,23 +91,25 @@ class Agent:
         self._on_message = callback or (lambda _m: None)
 
     def cancel_pending_tool_calls(self) -> None:
-        """Đắp một ToolResult 'cancelled' cho MỌI tool_call trong transcript
-        chưa có ToolResultMessage khớp.
+        """Append a cancelled ToolResult for every unmatched tool call in the transcript.
 
-        Gọi khi một lượt bị ngắt (Ctrl+C) sau khi assistant message mang
-        tool_calls đã được append nhưng chưa kịp có đủ result. Một function_call
-        mồ côi (có call, thiếu response) khiến provider từ chối request KẾ TIẾP
-        (Gemini: INVALID_ARGUMENT), nên ta hàn transcript lại ở đây.
+        This is used when a turn is interrupted (for example by Ctrl+C) after the
+        assistant message with tool_calls has already been appended, but before the
+        corresponding results are available. An orphaned function call (present in
+        the transcript but missing its response) can cause the next provider request
+        to be rejected (for example Gemini: INVALID_ARGUMENT), so the transcript is
+        repaired here.
 
-        Idempotent: không có mồ côi thì không làm gì → an toàn để gọi ở mọi
-        đường thoát của lượt.
+        Idempotent: if there are no orphaned calls, nothing is added, so it is safe
+        to call this on every exit path of a turn.
         """
         resolved: set[str] = {
             m.tool_call_id
             for m in self._messages
             if isinstance(m, ToolResultMessage)
         }
-        # Gom trước, KHÔNG vừa duyệt self._messages vừa append vào nó.
+        # Gather the list first; do not iterate and append to self._messages at the
+        # same time, because that would mutate the data we are traversing.
         orphans = [
             call
             for msg in self._messages

@@ -17,10 +17,11 @@ truststore.inject_into_ssl()
 
 from pathlib import Path
 
+from dotenv import dotenv_values
 from pydantic import ValidationError
 
 from tap.agent import Agent
-from tap.config import Settings, thinking_budget_from_level
+from tap.config import ENV_FILE, Settings, thinking_budget_from_level
 from tap.events import (
     AgentErrorEvent,
     AgentEvent,
@@ -45,149 +46,54 @@ from tap.tools.write import WriteTool
 SEPARATOR = "─" * 50
 DEFAULT_MODEL = Settings.model_fields["tap_model"].default
 
-UI_TEXT = {
-    "en": {
-        "missing_key": "[!] GEMINI_API_KEY was not found in the environment or .env file.",
-        "enter_key_now": "    Enter the key now (for this session only),",
-        "add_key_later": "    or press Ctrl+C to exit and add it to .env for future runs.",
-        "prompt_key": "    Gemini API key: ",
-        "cancelled": "\n[!] Cancelled.",
-        "empty_key": "[!] Empty key. Exiting.",
-        "select_model": "[i] Select a model:",
-        "default_model": "    1) {model} (default)",
-        "custom_model": "    2) Enter a custom model",
-        "select_choice": "    Select [1]: ",
-        "enter_model_name": "    Enter model name: ",
-        "using_model": "[i] Using model: {model}",
-        "config_failed": "[!] Configuration still failed after entering the key:",
-        "using_key": "[i] Using Gemini key ...{tail} (source: {source})",
-        "select_ui_language": "[i] Select UI language:",
-        "ui_language_en": "    1) English",
-        "ui_language_vi": "    2) Tiếng Việt",
-        "ui_language_choice": "    Select [1]: ",
-        "ui_language_selected": "[i] UI language set to: {language}",
-        "select_reply_language": "[i] Choose the reply language for the agent:",
-        "reply_language_auto": "    1) Auto (match the user's language)",
-        "reply_language_vi": "    2) Vietnamese",
-        "reply_language_en": "    3) English",
-        "reply_language_choice": "    Select [1]: ",
-        "reply_language_selected": "[i] Agent reply language set to: {language}",
-        "no_sessions": "(no sessions yet)",
-        "help_prompt": "/help for commands, /exit or Ctrl-D to quit.",
-        "help_text": """Slash commands:
+HELP_TEXT = """Slash commands:
   /help              — show this help
   /exit, /quit       — exit tap
+  /config            — show the current configuration and where each value comes from
   /plan              — view the current plan
   /clear             — reset the current session transcript (does not delete the file)
   /sessions          — list saved sessions
   /show [id]         — review session content (default: current session)
   /resume <id>       — load an older session and continue
   /new               — end the current session and start a new one
-""",
-        "reset_session": "[Reset the current session transcript]",
-        "unknown_command": "[!] Unknown command: {line}. Type /help to see the list.",
-        "cancel_run": "[!] Cancelled the current run (Ctrl+C). Continue typing or use /exit to quit.",
-        "agent_error": "[!] Error while calling the agent: {type_name}: {error}",
-        "empty_session": "(empty session)",
-        "tap_banner": "tap — mini coding agent",
-        "session_label": "Session: {session_id}",
-        "error_main": "[!] Error: {type_name}: {error}",
-        "more_lines": "  ... ({remaining} more lines, open the JSONL file to view the full output)",
-    },
-    
-    "vi": {
-        "missing_key": "[!] Không tìm thấy GEMINI_API_KEY trong môi trường hoặc file .env.",
-        "enter_key_now": "    Nhập key ngay bây giờ (chỉ dùng cho phiên này),",
-        "add_key_later": "    hoặc nhấn Ctrl+C để thoát và thêm vào .env cho lần sau.",
-        "prompt_key": "    Gemini API key: ",
-        "cancelled": "\n[!] Đã hủy.",
-        "empty_key": "[!] Key rỗng. Thoát.",
-        "select_model": "[i] Chọn model:",
-        "default_model": "    1) {model} (mặc định)",
-        "custom_model": "    2) Nhập model khác",
-        "select_choice": "    Chọn [1]: ",
-        "enter_model_name": "    Nhập tên model: ",
-        "using_model": "[i] Đang dùng model: {model}",
-        "config_failed": "[!] Vẫn lỗi cấu hình sau khi nhập key:",
-        "using_key": "[i] Đang dùng Gemini key ...{tail} (nguồn: {source})",
-        "select_ui_language": "[i] Chọn ngôn ngữ giao diện:",
-        "ui_language_en": "    1) English",
-        "ui_language_vi": "    2) Tiếng Việt",
-        "ui_language_choice": "    Chọn [1]: ",
-        "ui_language_selected": "[i] Ngôn ngữ giao diện đã đặt: {language}",
-        "select_reply_language": "[i] Chọn chế độ ngôn ngữ trả lời của agent:",
-        "reply_language_auto": "    1) Tự động (theo ngôn ngữ của người dùng)",
-        "reply_language_vi": "    2) Tiếng Việt",
-        "reply_language_en": "    3) Tiếng Anh",
-        "reply_language_choice": "    Chọn [1]: ",
-        "reply_language_selected": "[i] Chế độ trả lời của agent đã đặt: {language}",
-        "no_sessions": "(chưa có session nào)",
-        "help_prompt": "/help để xem lệnh, /exit hoặc Ctrl-D để thoát.",
-        "help_text": """Lệnh slash:
-  /help              — hiển thị help này
-  /exit, /quit       — thoát tap
-  /plan              — xem kế hoạch hiện tại
-  /clear             — reset transcript của session hiện tại (không xóa file)
-  /sessions          — liệt kê các session đã lưu
-  /show [id]         — xem lại nội dung session (mặc định: session hiện tại)
-  /resume <id>       — tải session cũ và tiếp tục
-  /new               — kết thúc session hiện tại và bắt đầu session mới
-""",
-        "reset_session": "[Đã reset transcript của session hiện tại]",
-        "unknown_command": "[!] Lệnh không hợp lệ: {line}. Gõ /help để xem danh sách.",
-        "cancel_run": "[!] Đã hủy run hiện tại (Ctrl+C). Gõ tiếp hoặc /exit để thoát.",
-        "agent_error": "[!] Lỗi khi gọi agent: {type_name}: {error}",
-        "empty_session": "(session rỗng)",
-        "tap_banner": "tap — mini coding agent",
-        "session_label": "Session: {session_id}",
-        "error_main": "[!] Lỗi: {type_name}: {error}",
-        "more_lines": "  ... ({remaining} dòng nữa, mở file JSONL để xem full)",
-    },
-}
+"""
+
+REPLY_LANGUAGE_CHOICES = {"1": "auto", "2": "vi", "3": "en"}
+
+# Env vars whose value the user typed in at a prompt this run (not from env/.env).
+_ENTERED_THIS_SESSION: set[str] = set()
 
 
-def normalize_ui_language(value: str | None) -> str:
-    """Normalize the UI language and keep only supported values."""
-    lang = (value or "en").strip().lower()
-    return lang if lang in {"en", "vi"} else "en"
-
-
-def ui_text(key: str, ui_language: str | None = None, **kwargs: object) -> str:
-    """Render a user-facing string for the selected UI language."""
-    language = normalize_ui_language(ui_language)
-    template = UI_TEXT.get(language, UI_TEXT["en"]).get(key, UI_TEXT["en"][key])
-    return template.format(**kwargs)
-
-
-def _prompt_for_key(ui_language: str | None = None) -> None:
+def _prompt_for_key() -> None:
     """No key found -> prompt for one, set it in os.environ for the current session."""
-    print(ui_text("missing_key", ui_language))
-    print(ui_text("enter_key_now", ui_language))
-    print(ui_text("add_key_later", ui_language))
+    print("[!] GEMINI_API_KEY was not found in the environment or .env file.")
+    print("    Enter the key now (for this session only),")
+    print("    or press Ctrl+C to exit and add it to .env for future runs.")
     try:
-        key = input(ui_text("prompt_key", ui_language)).strip()
+        key = input("    Gemini API key: ").strip()
     except (KeyboardInterrupt, EOFError):
-        print(ui_text("cancelled", ui_language))
+        print("\n[!] Cancelled.")
         sys.exit(1)
     if not key:
-        print(ui_text("empty_key", ui_language))
+        print("[!] Empty key. Exiting.")
         sys.exit(1)
     os.environ["GEMINI_API_KEY"] = key  # pydantic Settings will re-read from here
+    _ENTERED_THIS_SESSION.add("GEMINI_API_KEY")
 
 
-def _prompt_for_model(ui_language: str | None = None) -> None:
+def _prompt_for_model() -> None:
     """Prompt for a model choice, set it in os.environ for the current session."""
-    print(ui_text("select_model", ui_language))
-    print(ui_text("default_model", ui_language, model=DEFAULT_MODEL))
-    print(ui_text("custom_model", ui_language))
+    print("[i] Select a model:")
+    print(f"    1) {DEFAULT_MODEL} (default)")
+    print("    2) Enter a custom model")
     try:
-        choice = input(ui_text("select_choice", ui_language)).strip()
+        choice = input("    Select [1]: ").strip()
     except (KeyboardInterrupt, EOFError):
         choice = "1"  # Ctrl+C here -> use the default, don't fully exit
 
     if choice == "2":
         try:
-            model = input(ui_text("enter_model_name", ui_language)).strip()
+            model = input("    Enter model name: ").strip()
         except (KeyboardInterrupt, EOFError):
             model = ""
         model = model or DEFAULT_MODEL  # empty input -> fall back to the default
@@ -195,82 +101,70 @@ def _prompt_for_model(ui_language: str | None = None) -> None:
         model = DEFAULT_MODEL  # "1", Enter, or any garbage -> default
 
     os.environ["TAP_MODEL"] = model  # pydantic Settings will re-read it
-    print(ui_text("using_model", ui_language, model=model))
+    _ENTERED_THIS_SESSION.add("TAP_MODEL")
+    print(f"[i] Using model: {model}")
 
 
-def _prompt_for_ui_language() -> str:
-    """Ask the user to choose the UI language for this session."""
-    ui_language = normalize_ui_language(os.environ.get("TAP_UI_LANGUAGE"))
-    print(ui_text("select_ui_language", ui_language))
-    print(ui_text("ui_language_en", ui_language))
-    print(ui_text("ui_language_vi", ui_language))
+def _prompt_for_reply_language() -> None:
+    """Prompt for the agent reply language, set it in os.environ for the current session."""
+    print("[i] Choose the reply language for the agent:")
+    print("    1) Auto (match the user's language)")
+    print("    2) Vietnamese")
+    print("    3) English")
     try:
-        choice = input(ui_text("ui_language_choice", ui_language)).strip()
+        choice = input("    Select [1]: ").strip()
     except (KeyboardInterrupt, EOFError):
         choice = "1"
 
-    if choice == "2":
-        ui_language = "vi"
-    else:
-        ui_language = "en"
-
-    os.environ["TAP_UI_LANGUAGE"] = ui_language
-    print(ui_text("ui_language_selected", ui_language, language=ui_language))
-    return ui_language
+    language = REPLY_LANGUAGE_CHOICES.get(choice, "auto")  # Enter or garbage -> auto
+    os.environ["TAP_LANGUAGE"] = language  # pydantic Settings will re-read it
+    _ENTERED_THIS_SESSION.add("TAP_LANGUAGE")
+    print(f"[i] Agent reply language: {language}")
 
 
-def _prompt_for_reply_language(ui_language: str | None = None) -> str:
-    """Ask the user to choose the agent reply language mode."""
-    current = (os.environ.get("TAP_LANGUAGE") or "auto").strip().lower()
-    if current not in {"auto", "vi", "en", "ja", "ko"}:
-        current = "auto"
+def _config_sources(env_file: Path) -> dict[str, str]:
+    """Where each setting's effective value comes from, keyed by env var name.
 
-    print(ui_text("select_reply_language", ui_language))
-    print(ui_text("reply_language_auto", ui_language))
-    print(ui_text("reply_language_vi", ui_language))
-    print(ui_text("reply_language_en", ui_language))
-    try:
-        choice = input(ui_text("reply_language_choice", ui_language)).strip()
-    except (KeyboardInterrupt, EOFError):
-        choice = "1"
-
-    if choice == "2":
-        chosen = "vi"
-    elif choice == "3":
-        chosen = "en"
-    else:
-        chosen = "auto"
-
-    os.environ["TAP_LANGUAGE"] = chosen
-    print(ui_text("reply_language_selected", ui_language, language=chosen))
-    return chosen
+    Mirrors pydantic-settings precedence: env var > .env > field default.
+    """
+    dotenv = (
+        {k.upper() for k in dotenv_values(env_file)} if env_file.is_file() else set()
+    )
+    sources: dict[str, str] = {}
+    for field in Settings.model_fields:
+        var = field.upper()
+        if var in _ENTERED_THIS_SESSION:
+            sources[var] = "entered this session"
+        elif var in os.environ:
+            sources[var] = "env var"
+        elif var in dotenv:
+            sources[var] = ".env"
+        else:
+            sources[var] = "default"
+    return sources
 
 
 def load_settings() -> Settings:
     """Load Settings; if the key is missing, prompt and retry. Print the key's tail + its source."""
-    key_before = os.environ.get("GEMINI_API_KEY")  # present already = from a real env var
-    ui_language = normalize_ui_language(os.environ.get("TAP_UI_LANGUAGE"))
-
     try:
         settings = Settings()
     except ValidationError:
-        _prompt_for_key(ui_language)
-        if "TAP_MODEL" not in os.environ:  
-            _prompt_for_model(ui_language)  
+        # No key anywhere -> most likely a repo without a .env: ask for the basics.
+        _prompt_for_key()
+        if "TAP_MODEL" not in os.environ:
+            _prompt_for_model()
+        if "TAP_LANGUAGE" not in os.environ:
+            _prompt_for_reply_language()
         try:
             settings = Settings()  # retry after injecting the key
         except ValidationError as e:
-            print(ui_text("config_failed", ui_language), file=sys.stderr)
+            print("[!] Configuration still failed after entering the key:", file=sys.stderr)
             print(e, file=sys.stderr)
             sys.exit(1)
 
-    if "TAP_LANGUAGE" not in os.environ:
-        _prompt_for_reply_language(ui_language)
-        settings = Settings()
-
     key = settings.gemini_api_key
-    source = "env var" if key_before else ".env / manual entry"
-    print(ui_text("using_key", ui_language, tail=key[-4:], source=source))
+    source = _config_sources(Path.cwd() / ENV_FILE)["GEMINI_API_KEY"]
+    print(f"[i] Using Gemini key ...{key[-4:]} (source: {source})")
     return settings
 
 def build_agent_and_harness(
@@ -406,15 +300,24 @@ def _render_repl_event(event: AgentEvent) -> None:
             print(SEPARATOR, flush=True)
 
 
-def build_help_text(ui_language: str | None = None) -> str:
-    """Return the slash-command help text in the selected UI language."""
-    return ui_text("help_text", normalize_ui_language(ui_language))
+def _cmd_config(settings: Settings) -> None:
+    """Print each setting's effective value and where it comes from (read-only)."""
+    env_file = Path.cwd() / ENV_FILE
+    sources = _config_sources(env_file)
+    status = "found" if env_file.is_file() else "not found"
+    print(f"Config file: {env_file} ({status})")
+    for field in Settings.model_fields:
+        var = field.upper()
+        value = getattr(settings, field)
+        if field == "gemini_api_key":
+            value = f"...{value[-4:]}"  # never print the full key
+        print(f"  {var:<20} {str(value):<24} ({sources[var]})")
 
 
-def _cmd_sessions(store: SessionStore, ui_language: str | None = None) -> None:
+def _cmd_sessions(store: SessionStore) -> None:
     summaries = store.list_sessions()
     if not summaries:
-        print(ui_text("no_sessions", ui_language))
+        print("(no sessions yet)")
         return
     print(f"{'ID':<20} {'Msgs':>5}  {'Updated':<20} First message")
     print("─" * 90)
@@ -445,7 +348,6 @@ def _cmd_show(
     session_id: str | None,
     store: SessionStore,
     current_session: Session,
-    ui_language: str | None = None,
 ) -> None:
     """Render a session to the terminal so the user can review its contents.
 
@@ -462,7 +364,7 @@ def _cmd_show(
     print(f"\n─── Session {target_id} ({len(messages)} messages) ───\n")
 
     if not messages:
-        print(f"{ui_text('empty_session', ui_language)}\n")
+        print("(empty session)\n")
         return
 
     for msg in messages:
@@ -486,13 +388,12 @@ def run_repl(
     store: SessionStore,
     current_session: Session,
     plan_state: PlanState,
-    ui_language: str | None = None,
+    settings: Settings,
 ) -> None:
     """Interactive REPL mode with slash commands."""
-    ui_language = normalize_ui_language(ui_language)
-    print(ui_text("tap_banner", ui_language))
-    print(ui_text("session_label", ui_language, session_id=current_session.id))
-    print(f"{ui_text('help_prompt', ui_language)}\n")
+    print("tap — mini coding agent")
+    print(f"Session: {current_session.id}")
+    print("/help for commands, /exit or Ctrl-D to quit.\n")
 
     while True:
         try:
@@ -510,7 +411,12 @@ def run_repl(
             break
 
         if line == "/help":
-            print(build_help_text(ui_language))
+            print(HELP_TEXT)
+            continue
+
+        if line == "/config":
+            _cmd_config(settings)
+            print()
             continue
 
         if line == "/plan":
@@ -519,11 +425,11 @@ def run_repl(
         
         if line == "/clear":
             agent.reset()
-            print(f"{ui_text('reset_session', ui_language)}\n")
+            print("[Reset the current session transcript]\n")
             continue
 
         if line == "/sessions":
-            _cmd_sessions(store, ui_language)
+            _cmd_sessions(store)
             print()
             continue
 
@@ -540,7 +446,7 @@ def run_repl(
         if line.startswith("/show"):
             parts = line.split(maxsplit=1)
             target_id = parts[1].strip() if len(parts) > 1 else None
-            _cmd_show(target_id, store, current_session, ui_language)
+            _cmd_show(target_id, store, current_session)
             continue
 
         if line == "/new":
@@ -548,7 +454,7 @@ def run_repl(
             continue
 
         if line.startswith("/"):
-            print(ui_text("unknown_command", ui_language, line=line) + "\n")
+            print(f"[!] Unknown command: {line}. Type /help to see the list.\n")
             continue
 
         # Regular chat
@@ -566,10 +472,13 @@ def run_repl(
             # Ctrl+C mid-run: cancel the current run, but do NOT exit tap.
             # The transcript keeps whatever was appended up to now (the session file
             # is append-only, so it isn't corrupted); the user can type again right away.
-            print(f"\n{ui_text('cancel_run', ui_language)}", flush=True)
+            print(
+                "\n[!] Cancelled the current run (Ctrl+C). Continue typing or use /exit to quit.",
+                flush=True,
+            )
         except Exception as e:
             print(
-                f"\n{ui_text('agent_error', ui_language, type_name=type(e).__name__, error=e)}",
+                f"\n[!] Error while calling the agent: {type(e).__name__}: {e}",
                 file=sys.stderr,
                 flush=True,
             )
@@ -639,24 +548,9 @@ def main() -> None:
         default=Path.cwd() / ".tap-sessions",
         help="Directory for storing sessions (default: ./.tap-sessions in the project)",
     )
-    parser.add_argument(
-        "--ui-language",
-        choices=["en", "vi"],
-        default=None,
-        help="Interface language for user-facing prompts and slash commands: en or vi.",
-    )
     args = parser.parse_args()
 
-    if args.ui_language is not None:
-        ui_language = normalize_ui_language(args.ui_language)
-    elif "TAP_UI_LANGUAGE" in os.environ:
-        ui_language = normalize_ui_language(os.environ.get("TAP_UI_LANGUAGE"))
-    else:
-        ui_language = _prompt_for_ui_language()
-    os.environ["TAP_UI_LANGUAGE"] = ui_language
-
     settings = load_settings()
-    ui_language = settings.tap_ui_language
 
     project_root = Path.cwd()
     store = SessionStore(session_dir=args.session_dir)
@@ -672,11 +566,11 @@ def main() -> None:
         try:
             exit_code = run_one_shot(harness, args.prompt)
         except Exception as e:
-            print(ui_text("error_main", ui_language, type_name=type(e).__name__, error=e), file=sys.stderr)
+            print(f"[!] Error: {type(e).__name__}: {e}", file=sys.stderr)
             sys.exit(1)
         sys.exit(exit_code)
     else:
-        run_repl(agent, harness, store, current_session, plan_state, ui_language)
+        run_repl(agent, harness, store, current_session, plan_state, settings)
 
 
 if __name__ == "__main__":
