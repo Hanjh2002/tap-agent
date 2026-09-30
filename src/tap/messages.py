@@ -49,7 +49,7 @@ class ToolCall(BaseModel):
         if isinstance(v, str):
             return b64decode(v)
         raise TypeError(
-            f"thought_signature MUST be bytes | str | None, input: {type(v).__name__}"
+            f"thought_signature must be bytes | str | None, got: {type(v).__name__}"
         )
 
 

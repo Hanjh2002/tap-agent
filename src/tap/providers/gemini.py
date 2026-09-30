@@ -18,7 +18,7 @@ import random
 import time
 
 from google import genai
-from google.genai import errors,types
+from google.genai import errors, types
 
 from tap.messages import (
     AssistantMessage,
@@ -31,8 +31,15 @@ from tap.messages import (
 if TYPE_CHECKING:
     from tap.tools.base import BaseTool
 
+# Transient errors worth retrying:
+#  - 429: rate limit
+#  - 500/502/503/504: server-side, usually clears up after a few seconds
+_RETRYABLE_CODES = frozenset({429, 500, 502, 503, 504})
+
+
 class GeminiProviderError(RuntimeError):
     """A normalized Gemini request/response error."""
+
 
 class GeminiProvider:
     """Provider adapter for Google Gemini."""
@@ -75,8 +82,8 @@ class GeminiProvider:
         system: str,
         messages: list[Message],
         tools: list["BaseTool"],
-    ) -> AssistantMessage:   
-    # Build contents + config ONCE, outside the loop — retries don't rebuild them.
+    ) -> AssistantMessage:
+        # Build contents + config ONCE, outside the loop — retries don't rebuild them.
         contents = self._messages_to_contents(messages)
         config = types.GenerateContentConfig(
             system_instruction=system,
@@ -93,17 +100,14 @@ class GeminiProvider:
                     config=config,
                 )
                 return self._parse_response(response)
-            
+
             except (errors.APIError, TimeoutError) as exc:
-                # Transient errors are worth retrying:
-                #  - 429: rate limit
-                #  - 500/502/503/504: server-side, usually clears up after a few seconds
-                #  - TimeoutError: flaky network
-                RETRYABLE_CODES = {429, 500, 502, 503, 504}
+                # Retry rate limits / server errors (_RETRYABLE_CODES) and
+                # TimeoutError (flaky network).
                 is_transient = (
                     isinstance(exc, TimeoutError)
-                    or (isinstance(exc, errors.APIError) 
-                        and exc.code in RETRYABLE_CODES)
+                    or (isinstance(exc, errors.APIError)
+                        and exc.code in _RETRYABLE_CODES)
                 )
                 if is_transient and attempt <= self._max_retries:
                     # Backoff: 1s, 2s, 4s, 8s, 16s + jitter to avoid synchronized retries.
@@ -132,8 +136,8 @@ class GeminiProvider:
     # ---------- Request building ----------
 
     def _messages_to_contents(
-            self, messages: list[Message]
-        ) -> list[types.Content]:
+        self, messages: list[Message]
+    ) -> list[types.Content]:
         """Convert tap messages → list of Gemini Content objects.
 
         Mapping:
@@ -201,8 +205,10 @@ class GeminiProvider:
     # ---------- Response parsing ----------
 
     def _parse_response(self, response: Any) -> AssistantMessage:
-        # Extract text and function_calls from Gemini response.
-        # Defensive: the response may have no candidates if it was blocked
+        """Extract text, thoughts and function_calls from a Gemini response.
+
+        Defensive: the response may have no candidates if it was blocked.
+        """
         candidates = getattr(response, "candidates", None) or []
         if not candidates:
             return AssistantMessage(
@@ -253,13 +259,14 @@ class GeminiProvider:
             stop_reason="tool_use" if tool_calls else "end_turn",
         )
 
-    # ---------- Finish-reason Handling ----------
+    # ---------- Finish-reason handling ----------
+
     def _describe_finish_reason(self, finish_reason: str | types.FinishReason) -> str | None:
         """Return a human-readable description for a Gemini finish reason.
 
         Gemini occasionally adds new finish reasons over time. We do not want to
         guess or fabricate descriptions for unknown values, because that can hide
-        real lifecycle changes and make debugging harder.
+        real API changes and make debugging harder.
 
         For known reasons we return a friendly message. For unrecognized values we
         fall back to None so the caller can decide whether to ignore, log, or
@@ -282,7 +289,7 @@ class GeminiProvider:
         # Fallback for future Gemini values we do not recognize yet.
         # Returning None keeps the caller honest instead of inventing a message.
         return None
-        
+
 
 def _clean_schema_for_gemini(schema: dict) -> dict:
     """Strip JSON Schema fields Gemini doesn't accept + inline $ref.

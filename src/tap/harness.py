@@ -1,4 +1,4 @@
-"""AgentHarness — drives the Agent generator and executes tools when Agent requests.
+"""AgentHarness — drives the Agent generator and executes tools when the Agent requests them.
 
 This is the "orchestrator" split out from the Agent loop. It has one responsibility:
 - Consume Agent.chat() generator
@@ -7,14 +7,14 @@ This is the "orchestrator" split out from the Agent loop. It has one responsibil
 - Forward all events outward (to the CLI/frontend)
 
 Benefits of splitting this out from the Agent:
-- doesn't need to know "how" tools are executed. To wrap them
+- The Agent doesn't need to know "how" tools are executed. To wrap them
   (confirmation, logging, sandbox), swap tool_executor without touching the Agent.
 - Testing the Agent with a fake executor is dead simple (a single lambda).
 - Testing the Harness in isolation with a fake Agent generator.
 
-Signature tool_executor: `Callable[[str, dict], ToolResult]`
+tool_executor signature: `Callable[[str, dict], ToolResult]`
 - Input: tool_name (str), arguments (dict)
-- Output: ToolResult (must not raise — if raise, Harness wraps into
+- Output: ToolResult (must not raise — if it raises, the Harness wraps it into
   ToolResult(ok=False))
 """
 
@@ -63,13 +63,13 @@ class AgentHarness:
                 if isinstance(event, ToolCallStartEvent):
                     to_send = self._safe_execute(event.tool_name, event.arguments)
         finally:
-            # Lượt đang kết thúc — bình thường, HOẶC do Ctrl+C. KeyboardInterrupt
-            # là BaseException nên lọt qua `except Exception` của _safe_execute rồi
-            # unwind qua đây; còn nếu Ctrl+C rơi đúng lúc ta đang treo ở `yield
-            # event`, CLI sẽ close ta và GeneratorExit unwind qua đây thay thế.
-            # Cả hai đường: transcript có thể còn assistant message với tool_calls
-            # thiếu result. Hàn lại cho lượt SAU hợp lệ, rồi dẹp agent generator.
-            # No-op trên đường bình thường.
+            # The turn is ending — normally, OR because of Ctrl+C. KeyboardInterrupt
+            # is a BaseException, so it slips past _safe_execute's `except Exception`
+            # and unwinds through here; if Ctrl+C lands while we are suspended at
+            # `yield event`, the CLI closes us and GeneratorExit unwinds through here
+            # instead. Either way, the transcript may hold an assistant message whose
+            # tool_calls have no results: repair it so the NEXT turn is valid, then
+            # close the agent generator. No-op on the normal path.
             self._agent.cancel_pending_tool_calls()
             gen.close()
 

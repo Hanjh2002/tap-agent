@@ -1,13 +1,13 @@
 """Plan tool — lets the agent break a multi-step task into a checklist itself.
 
-`Design (like other agents' TodoWrite):
+Design (like other agents' TodoWrite):
 - On every call, the model resends the ENTIRE step list with the current statuses.
   There's no separate "add a step" / "mark step 3 done" — the model rewrites the whole list.
   This makes re-planning natural: to change the plan, send a new list, done.
 - `PlanState` is the source of truth shared between the tool and the CLI: the tool writes to it,
   the CLI reads from it to render. Just as other tools take `project_root` —
   here PlanTool takes `PlanState`.
-- Tool does NOT touch the filesystem and runs NOTHING dangerous → always safe,
+- The tool does NOT touch the filesystem and runs NOTHING dangerous → always safe,
   no need to go through the permission layer.
 """
 
@@ -85,4 +85,3 @@ class PlanTool(BaseTool):
         self._state.set_steps(args.steps)
         # Return the rendered checklist to the model so it can confirm the current state.
         return ToolResult(output=self._state.render(), ok=True)
-    

@@ -1,7 +1,7 @@
-"""Read tool — read an UTF-8 text file.
+"""Read tool — read a UTF-8 text file.
 
 v1: adds path safety via resolve_within_project.
-v2:  also takes extra_read_roots (the skills directories). read may read within
+v2: also takes extra_read_roots (the skills directories). read may read within
     project_root OR these directories. write/edit/bash are NOT widened —
     least privilege: the model can read skills but can't write/run outside the project.
 v5: adds offset and limit for reading selected line ranges.
@@ -30,11 +30,12 @@ PAST_END = "past_end"
 # A single line exceeds the maximum character limit.
 OVERSIZE = "oversize"
 
-# More content remains after reaching the maximum character.
+# More content remains after reaching the maximum character limit.
 MORE = "more"
 
 # Selected lines reach the end of the file.
 COMPLETE = "complete"
+
 
 # Not every field is meaningful in every state. For example, next_offset and
 # remaining are meaningless for EMPTY/PAST_END; _render only reads fields that
@@ -48,6 +49,7 @@ class Selection(BaseModel):
     requested_offset: int
     file_len: int
     shown_chars: int
+
 
 def _select_lines(all_lines, offset, limit, max_chars) -> Selection:
     """Select lines from all_lines, with offset and limit."""
@@ -79,7 +81,7 @@ def _select_lines(all_lines, offset, limit, max_chars) -> Selection:
 
     end = min(start + limit, total)
     candidate = all_lines[start:end]
-    n_taken = 0   # number of lines taken 
+    n_taken = 0   # number of lines taken
     running = 0   # total number of chars taken
 
     # If the first line exceeds the cap by itself, taking zero lines would
@@ -105,7 +107,7 @@ def _select_lines(all_lines, offset, limit, max_chars) -> Selection:
     # next_offset, remaining, and state are all derived after the loop.
     for line in candidate:
         new_running = running + len(line) + 1
-        
+
         if new_running > max_chars:
             break
 
@@ -114,18 +116,19 @@ def _select_lines(all_lines, offset, limit, max_chars) -> Selection:
 
     next_offset = offset + n_taken
     remaining = total - next_offset + 1
-        
+
     # Stopping for the line limit, character cap, or end of file is unified
     # here: one comparison distinguishes remaining lines from a complete read.
     return Selection(
         body=candidate[:n_taken],
-        state=MORE if next_offset<= total else COMPLETE,
+        state=MORE if next_offset <= total else COMPLETE,
         next_offset=next_offset,
         remaining=remaining,
         requested_offset=offset,
         file_len=total,
-        shown_chars = max_chars,
-        )
+        shown_chars=max_chars,
+    )
+
 
 def _render(selection: Selection, path) -> str:
     body_text = "\n".join(selection.body)
@@ -134,10 +137,10 @@ def _render(selection: Selection, path) -> str:
     # would break that hidden coupling.
     if selection.state == EMPTY:
         return "[File is empty!]"
-    
+
     elif selection.state == PAST_END:
         return (
-            body_text + 
+            body_text +
             f"\n\n[offset={selection.requested_offset}, file_len={selection.file_len} — {path}]"
         )
 
@@ -149,7 +152,7 @@ def _render(selection: Selection, path) -> str:
 
     elif selection.state == COMPLETE:
         return body_text
-    
+
     elif selection.state == OVERSIZE:
         return (
             body_text +
@@ -158,22 +161,21 @@ def _render(selection: Selection, path) -> str:
 
     else:
         raise ValueError(f"unknown state {selection.state}")
-        
+
+
 class ReadArgs(BaseModel):
-    path: str = Field(..., 
-                      description="Path to file to read (relative to project root)")
-    offset: int = Field(1, 
-                        ge=1, 
-                        description="1-indexed line number to start reading from")
-    limit: int = Field(2000, 
-                       ge=1, 
-                       description="Maximum number of lines to return")
+    path: str = Field(..., description="Path to file to read (relative to project root)")
+    offset: int = Field(1, ge=1, description="1-indexed line number to start reading from")
+    limit: int = Field(2000, ge=1, description="Maximum number of lines to return")
+
 
 class ReadTool(BaseTool):
     name = "read"
     description = (
-        "Read a UTF-8 text file inside the project directory and return its content. "
+        "Read a UTF-8 text file inside the project directory (or a skill directory) "
+        "and return its content. "
         "Use this to examine source code, config files, or documentation. "
+        "For large files, use offset/limit to page through line ranges. "
         "Fails if file doesn't exist, is a directory, is not UTF-8 text, "
         "or resolves outside the project root."
     )
@@ -186,7 +188,7 @@ class ReadTool(BaseTool):
         self._extra_read_roots = tuple(extra_read_roots)  # skills directories
 
     def _run(self, args: ReadArgs) -> ToolResult:
-        roots = [self._project_root, *self._extra_read_roots]  # project come first
+        roots = [self._project_root, *self._extra_read_roots]  # project comes first
         try:
             path = resolve_within_roots(args.path, roots)
         except PathOutsideProject as e:
@@ -207,10 +209,6 @@ class ReadTool(BaseTool):
         except PermissionError:
             return ToolResult(output=f"Permission denied: {args.path}", ok=False)
 
-        sel = _select_lines(text.split("\n"), 
-                            args.offset, 
-                            args.limit, 
-                            self.MAX_CHARS)
+        sel = _select_lines(text.split("\n"), args.offset, args.limit, self.MAX_CHARS)
 
         return ToolResult(output=_render(sel, args.path), ok=True)
-    

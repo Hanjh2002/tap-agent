@@ -1,11 +1,12 @@
 """Tool registry — the intermediary between the Agent and the Tools.
 
-Registry handles:
-1. Index tool according to name (O(1) lookup)
+The registry handles:
+1. Indexing tools by name (O(1) lookup)
 2. Listing tools (to build the system prompt + send to the LLM)
 3. Wrapping errors into ToolResult(ok=False) — the "tool error ≠ crash" principle
 
-Agent ust calls registry.execute(name, args), without knowing the details.
+The Harness calls registry.execute(name, args) (as its tool_executor) without
+knowing the details.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ class ToolRegistry:
     def execute(self, name: str, arguments: dict) -> ToolResult:
         """A safe facade: lookup + execute + wrap errors.
 
-        Agent calls this. Every error becomes a ToolResult(ok=False),never a 
+        The Harness calls this. Every error becomes a ToolResult(ok=False), never a
         raise. The LLM will read the error message and handle it itself.
         """
         tool = self.get(name)

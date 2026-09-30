@@ -24,12 +24,15 @@ class Edit(BaseModel):
 
 
 class EditArgs(BaseModel):
-    path: str = Field(..., 
-                      description="Path to file to edit (relative to project root)")
-    edits: list[Edit] = Field(..., 
-                              description=
-                                "List of edits; each replaces `old` with `new`. " 
-                                "All validated against the original before any write.")
+    path: str = Field(..., description="Path to file to edit (relative to project root)")
+    edits: list[Edit] = Field(
+        ...,
+        description=(
+            "List of edits; each replaces `old` with `new`. "
+            "All validated against the original before any write."
+        ),
+    )
+
 
 class EditError(Exception):
     NOT_FOUND = "not_found"
@@ -48,8 +51,10 @@ class EditError(Exception):
 
 UTF8_BOM = "\ufeff"
 
+
 def _strip_bom(text: str) -> tuple[str, str]:
     return (UTF8_BOM, text[1:]) if text.startswith(UTF8_BOM) else ("", text)
+
 
 def _detect_line_ending(text: str) -> str:
     crlf = text.find("\r\n")
@@ -58,11 +63,14 @@ def _detect_line_ending(text: str) -> str:
         return "\n"
     return "\r\n" if crlf < lf else "\n"
 
+
 def _normalize_to_lf(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
+
 def _restore_line_endings(text: str, ending: str) -> str:
     return text.replace("\n", "\r\n") if ending == "\r\n" else text
+
 
 def apply_edits(original: str, edits: list[Edit]) -> str:
     """Apply a list of exact-text replacements to the original content.
@@ -125,8 +133,8 @@ def apply_edits(original: str, edits: list[Edit]) -> str:
                                 reason=EditError.OVERLAP,
                                 message=f"edits {a + 1} and {b + 1} overlap")
 
-    # Apply replacements from left to right so earlier edits do not shift the later
-    # positions relative to the original string.
+    # Sort by start position so the output can be rebuilt in a single left-to-right
+    # pass over the original string (spans index into the original, not the result).
     spans.sort(key=lambda span: span[0])
 
     # Rebuild the final text by copying untouched content between replacements and
@@ -177,7 +185,7 @@ class EditTool(BaseTool):
 
         bom, content = _strip_bom(raw)
         ending = _detect_line_ending(content)
-        normalized = _normalize_to_lf(content) 
+        normalized = _normalize_to_lf(content)
 
         norm_edits = [
             Edit(old=_normalize_to_lf(e.old), new=_normalize_to_lf(e.new))
@@ -188,7 +196,7 @@ class EditTool(BaseTool):
             new_content = apply_edits(normalized, norm_edits)
         except EditError as e:
             return ToolResult(output=e.message, ok=False)
-        
+
         final = bom + _restore_line_endings(new_content, ending)
 
         try:
@@ -197,4 +205,5 @@ class EditTool(BaseTool):
         except PermissionError:
             return ToolResult(output=f"Permission denied writing {args.path}", ok=False)
 
-        return ToolResult(output=f"Edited {args.path} ({len(args.edits)} replacements)")
+        n = len(args.edits)
+        return ToolResult(output=f"Edited {args.path} ({n} replacement{'s' if n != 1 else ''})")

@@ -4,7 +4,7 @@ Each tool declares:
 - name: str
 - description: str
 - args_model: pydantic BaseModel — schema for arguments
-- _run(args): actual execute
+- _run(args): the actual execution
 
 `BaseTool.execute()` is a facade: it validates args via pydantic, then calls `_run()`.
 Subclasses override `_run()` ONLY. They must not touch `execute()`.
@@ -47,8 +47,8 @@ class BaseTool(ABC):
             arguments: raw dict from the LLM. May have the wrong shape.
 
         Returns:
-            ToolResult(ok=False) if validation fail.
-            ToolResult từ _run() if OK.
+            ToolResult(ok=False) if validation fails.
+            Otherwise, the ToolResult returned by _run().
         """
         try:
             args = self.args_model.model_validate(arguments)

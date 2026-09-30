@@ -1,7 +1,7 @@
 """Session persistence — JSONL append-only.
 
 Each session is one JSONL file in `session_dir`, named by timestamp:
-    ~/.tap/sessions/20260811-152430.jsonl
+    ./.tap-sessions/20260811-152430.jsonl   (default; override with --session-dir)
 
 Each line is one Message serialized via pydantic. Append-only format:
 - Write each message as soon as it happens (don't wait for the session to end)
