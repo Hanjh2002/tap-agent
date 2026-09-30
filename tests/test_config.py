@@ -12,7 +12,6 @@ def test_settings_loads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "dummy-api-key")
     monkeypatch.setenv("TAP_MODEL", "gemini-dummy-model")
     monkeypatch.setenv("TAP_LANGUAGE", "auto")
-    monkeypatch.setenv("TAP_UI_LANGUAGE", "vi")
     monkeypatch.setenv("TAP_MAX_ITERATIONS", "5")
     monkeypatch.setenv("TAP_THINKING", "off")
 
@@ -24,6 +23,5 @@ def test_settings_loads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.gemini_api_key == "dummy-api-key"
     assert settings.tap_model == "gemini-dummy-model"
     assert settings.tap_language == "auto"
-    assert settings.tap_ui_language == "vi"
     assert settings.tap_max_iterations == 5
     assert settings.tap_thinking == "off"

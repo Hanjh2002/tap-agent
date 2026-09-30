@@ -147,3 +147,53 @@ def test_one_shot_prints_only_last_text(capsys):
 
     assert capsys.readouterr().out.strip() == "xong roi"
     
+
+# ---------------------------------------------------------------------------
+# 4. /config: effective value + source, key masked; no prompts when key is set
+# ---------------------------------------------------------------------------
+
+def test_config_sources_follow_precedence(monkeypatch, tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("GEMINI_API_KEY=from-dotenv\nTAP_THINKING=low\n", encoding="utf-8")
+    monkeypatch.setattr(cli, "_ENTERED_THIS_SESSION", {"TAP_MODEL"})
+    monkeypatch.setenv("TAP_MODEL", "typed-model")
+    monkeypatch.setenv("TAP_THINKING", "high")      # env var beats .env
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("TAP_LANGUAGE", raising=False)
+    monkeypatch.delenv("TAP_MAX_ITERATIONS", raising=False)
+
+    sources = cli._config_sources(env_file)
+
+    assert sources["GEMINI_API_KEY"] == ".env"
+    assert sources["TAP_MODEL"] == "entered this session"
+    assert sources["TAP_THINKING"] == "env var"
+    assert sources["TAP_LANGUAGE"] == "default"
+
+
+def test_cmd_config_masks_api_key(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)  # no .env here
+    monkeypatch.setenv("GEMINI_API_KEY", "super-secret-key-1234")
+    settings = cli.Settings()
+
+    cli._cmd_config(settings)
+    out = capsys.readouterr().out
+
+    assert "super-secret" not in out
+    assert "...1234" in out
+    assert "not found" in out
+    assert "TAP_UI_LANGUAGE" not in out
+
+
+def test_load_settings_does_not_prompt_when_key_present(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy-key")
+    monkeypatch.delenv("TAP_LANGUAGE", raising=False)
+
+    def fail_input(*_args):
+        raise AssertionError("load_settings must not prompt when the key is configured")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+
+    settings = cli.load_settings()
+
+    assert settings.tap_language == "auto"
