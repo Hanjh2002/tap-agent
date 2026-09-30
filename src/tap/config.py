@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = Field(
         ...,
-        description="Gemini API key. Get key at: https://aistudio.google.com/apikey",
+        description="Gemini API key. Get a key at: https://aistudio.google.com/apikey",
     )
     tap_model: str = Field(default="gemini-2.5-flash")
     tap_language: Literal["auto", "vi", "en", "ja", "ko"] = "auto"
@@ -49,6 +49,7 @@ THINKING_BUDGETS: dict[str, int] = {
 
 def thinking_budget_from_level(level: str) -> int:
     """Return the thinking-token budget for a level.
+
     Unknown levels fall back to dynamic mode, represented by -1.
     """
     return THINKING_BUDGETS.get(level.lower().strip(), -1)

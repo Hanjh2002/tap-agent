@@ -23,12 +23,12 @@ class BaseProvider(Protocol):
         messages: list[Message],
         tools: list["BaseTool"],
     ) -> AssistantMessage:
-        """Generate 1 assistant turn.
+        """Generate one assistant turn.
 
         Args:
             system: System prompt.
-            messages: Full curent transcript.
-            tools: Tools available to LLM on this turn.
+            messages: The full current transcript.
+            tools: Tools available to the LLM on this turn.
 
         Returns:
             AssistantMessage with text and/or tool_calls.

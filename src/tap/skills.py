@@ -56,7 +56,7 @@ def load_skills(roots: Sequence[Path]) -> list[Skill]:
     by_name: dict[str, Skill] = {}
     for root in roots:
         for skill in _scan_root(root):
-            by_name[skill.name] = skill  # root sau đè root trước
+            by_name[skill.name] = skill  # a later root overrides an earlier one
     return sorted(by_name.values(), key=lambda s: s.name)
 
 
@@ -109,9 +109,9 @@ def _read_description(skill_file: Path) -> str | None:
 
 
 def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
-    """"Split the YAML frontmatter (the block between two '---') from the body.
+    """Split the YAML frontmatter (the block between two '---') from the body.
 
-    PA MINIMAL parser — deliberately avoids pulling in a YAML dependency. It only
+    A MINIMAL parser — deliberately avoids pulling in a YAML dependency. It only
     understands single-line `key: value`, stripping quotes around the value. Enough for
     name + description. If you need full YAML (lists, multiline...), swap in pyyaml.
 
@@ -153,7 +153,7 @@ def skill_roots(project_root: Path, home: Path | None = None) -> list[Path]:
     Rule: project overrides user; at the same level, tap-specific overrides generic.
 
     Args:
-        project_root:the project root (usually Path.cwd()).
+        project_root: the project root (usually Path.cwd()).
         home: the home directory; None → Path.home(). Kept separate so tests can inject a fake home.
     """
     home = home or Path.home()

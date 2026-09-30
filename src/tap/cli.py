@@ -1,18 +1,21 @@
 """CLI entry point — orchestrate config -> provider -> agent + harness + session.
 
-v2 changes:
 - Wire AgentHarness (instead of calling the Agent directly)
 - Wire up SessionStore; each tap run = one new session
-- Add slash commands: /sessions, /resume, /new, /help
--Pass project_root to the tools (Path.cwd()) + prompt (reads AGENTS.md)
+- Slash commands: /help, /exit, /config, /plan, /clear, /sessions, /show, /resume, /new
+- Pass project_root to the tools (Path.cwd()) + prompt (reads AGENTS.md)
 """
 
 from __future__ import annotations
 
 import argparse
-import os 
+import os
 import sys
+
 import truststore
+
+# Must run before importing modules that may build SSL contexts (google-genai/httpx):
+# use the OS certificate store so TLS works behind proxies with a custom CA.
 truststore.inject_into_ssl()
 
 from pathlib import Path
@@ -33,8 +36,8 @@ from tap.events import (
 )
 from tap.harness import AgentHarness
 from tap.prompt import build_system_prompt
-from tap.skills import load_skills, skill_roots
 from tap.providers.gemini import GeminiProvider
+from tap.skills import load_skills, skill_roots
 from tap.storage import Session, SessionStore
 from tap.tools.bash import BashTool
 from tap.tools.edit import EditTool
@@ -167,14 +170,17 @@ def load_settings() -> Settings:
     print(f"[i] Using Gemini key ...{key[-4:]} (source: {source})")
     return settings
 
+
 def build_agent_and_harness(
     session: Session,
     project_root: Path,
     settings: Settings | None = None,
 ) -> tuple[Agent, AgentHarness, PlanState]:
-    """Load config, initialize everything, and wire it all together.
+    """Wire the provider, tools, system prompt, agent and harness together.
 
-    Returns (agent, harness) — the CLI needs the agent to load a past session on /resume.
+    Loads settings via load_settings() when `settings` is None.
+    Returns (agent, harness, plan_state) — the CLI needs the agent to load a past
+    session on /resume, and plan_state to render /plan.
     """
 
     if settings is None:
@@ -190,7 +196,8 @@ def build_agent_and_harness(
 
     plan_state = PlanState()
     tools = [
-        # Only read is widened to the skill roots; write/edit/bash stay locked to the project.
+        # Only read is widened to the skill roots; write/edit are path-checked against
+        # the project, bash just runs with cwd=project_root.
         ReadTool(project_root=project_root, extra_read_roots=roots),
         BashTool(project_root=project_root),
         WriteTool(project_root=project_root),
@@ -199,11 +206,11 @@ def build_agent_and_harness(
     ]
     registry = ToolRegistry(tools)
     system = build_system_prompt(
-        tools, 
-        project_root=project_root, 
+        tools,
+        project_root=project_root,
         skills=skills,
         language=settings.tap_language,
-        )
+    )
 
     agent = Agent(
         provider=provider,
@@ -234,6 +241,7 @@ def _format_args(args: dict) -> str:
             parts.append(f"{k}={v}")
     return ", ".join(parts)
 
+
 def _render_message_for_show(msg) -> None:
     """Format one message for /show. Truncate tool output for brevity."""
     TOOL_OUTPUT_MAX_LINES = 20
@@ -253,7 +261,7 @@ def _render_message_for_show(msg) -> None:
             print()
         for call in msg.tool_calls:
             args_str = _format_args(call.arguments)
-            print(f"🤖 assistant → tool_call")
+            print("🤖 assistant → tool_call")
             print(f"  {call.name}({args_str})")
             print()
 
@@ -422,7 +430,7 @@ def run_repl(
         if line == "/plan":
             print(plan_state.render(), "\n")
             continue
-        
+
         if line == "/clear":
             agent.reset()
             print("[Reset the current session transcript]\n")
@@ -575,4 +583,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    

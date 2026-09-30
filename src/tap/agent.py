@@ -136,7 +136,7 @@ class Agent:
           AgentErrorEvent / ToolCallEndEvent: the Harness just forwards them,
           gen.send(None).
         - Yield ToolCallStartEvent: the Harness MUST execute the tool and
-          gen.send(ToolResult(...)). If it send(None) → the Agent yields
+          gen.send(ToolResult(...)). If it sends None → the Agent yields
           AgentErrorEvent and stops.
 
         Typical event sequence:
@@ -151,9 +151,9 @@ class Agent:
         Loop stops when:
         - Assistant stops calling tools (end_turn) -> AgentFinishEvent
         - Reached max_iterations -> AgentErrorEvent
-        - Provider raise exception -> AgentErrorEvent
+        - Provider raises an exception -> AgentErrorEvent
         - stop_reason == "error" -> AgentErrorEvent
-        - Harness fail to send ToolResult back -> AgentErrorEvent
+        - Harness fails to send a ToolResult back -> AgentErrorEvent
         """
         user_msg = UserMessage(content=user_input)
         self._messages.append(user_msg)
@@ -223,5 +223,5 @@ class Agent:
                 yield ToolCallEndEvent(tool_name=call.name, ok=result.ok)
 
         yield AgentErrorEvent(
-            message=f"Reached max_iterations={self._max_iter}, stop loop"
+            message=f"Reached max_iterations={self._max_iter}, stopping the loop"
         )

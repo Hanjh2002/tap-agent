@@ -1,6 +1,6 @@
 """Agent events — streamed out for the CLI (or another frontend) to render.
 
-Event system olves a problem: in v1, Agent.chat() stayed silent until it
+The event system solves a problem: in v1, Agent.chat() stayed silent until it
 was completely done. v2 yields events step by step so the user sees progress.
 
 Each event is a frozen pydantic model with a `type` field (a string literal)
@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class LoadingEvent(BaseModel):
-    """Agentis starting a provider call — awaiting the response."""
+    """Agent is starting a provider call — awaiting the response."""
     model_config = ConfigDict(frozen=True)
 
     type: Literal["loading"] = "loading"

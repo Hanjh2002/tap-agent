@@ -1,4 +1,4 @@
-""" 
+"""
 System prompt builder.
 
 v1: Read `AGENTS.md` from `project_root`, if present, and inject its
@@ -37,7 +37,7 @@ from tap.tools.base import BaseTool
 CONTEXT_FILENAME = "AGENTS.md"
 
 # Prevent an overly long AGENTS.md from consuming too much context
-MAX_CONTEXT_CHARS = 20_000  
+MAX_CONTEXT_CHARS = 20_000
 
 
 IDENTITY = """
@@ -120,7 +120,7 @@ def _language_directive(language: str) -> str:
     "vi"/"en"/... -> force that specific language.
     unknown code  -> mirror the user's language.
     """
-    
+
     language_names = {
         "vi": "Vietnamese",
         "en": "English",
@@ -133,14 +133,15 @@ def _language_directive(language: str) -> str:
 
     if code == "auto" or language_name is None:
         return (
-            "Always respond in the same language used by the user. " 
+            "Always respond in the same language used by the user. "
             "Do NOT default to Vietnamese or any other language."
         )
-    
+
     return (
-        f"The language user choose is {language_name}. "
-        f"ALWAYS respond in {language_name} whether the user asks by any other language."
-        )
+        f"The user has chosen {language_name} as the reply language. "
+        f"ALWAYS respond in {language_name}, even if the user writes in another language."
+    )
+
 
 def build_system_prompt(
     tools: list[BaseTool],

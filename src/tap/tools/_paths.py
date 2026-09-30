@@ -5,9 +5,10 @@ a path supplied by the LLM (e.g. read('../../../etc/passwd')) can't escape
 the allowed area.
 
 There are two permission levels:
-- resolve_within_project: 1 root = 1 root = project_root. Used by write/edit/bash —
-  they may NEVER write/run outside the project.
-- resolve_within_roots: N root. Used by read — besides the project, it may also read
+- resolve_within_project: a single root = project_root. Used by write/edit —
+  they may NEVER write outside the project. (bash is not path-checked; it only
+  runs with cwd=project_root.)
+- resolve_within_roots: N roots. Used by read — besides the project, it may also read
   inside the skills directories (which can live at ~/.tap/skills, i.e. OUTSIDE the project).
 """
 
@@ -65,7 +66,7 @@ def resolve_within_roots(raw_path: str, roots: Sequence[Path]) -> Path:
 def resolve_within_project(raw_path: str, project_root: Path) -> Path:
     """Resolve raw_path and ensure it falls within project_root.
 
-    A single-root wrapper around resolve_within_roots, for write/edit/bash —
+    A single-root wrapper around resolve_within_roots, for write/edit —
     tools that may only operate INSIDE the project. Keeps the old signature so
     tools already calling this function need no changes.
 

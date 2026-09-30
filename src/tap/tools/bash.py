@@ -3,7 +3,7 @@
 v2:
 - Runs in project_root (not the Python process's cwd)
 - Blocklists clearly dangerous commands (rm -rf, sudo, format, ...)
-- Blocklistis is substring-based; it won't false-negative on `bash -c` wrapping
+- The blocklist is substring-based, so it still catches commands wrapped in `bash -c`
   (the LLM could still slip past via echo pipes, base64, ... — the blocklist is a basic
   safety net, not a real sandbox)
 """
@@ -127,4 +127,3 @@ class BashTool(BaseTool):
             output=output,
             ok=(proc.returncode == 0),
         )
-    
