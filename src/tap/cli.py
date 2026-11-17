@@ -25,15 +25,7 @@ from pydantic import ValidationError
 
 from tap.agent import Agent
 from tap.config import ENV_FILE, Settings, thinking_budget_from_level
-from tap.events import (
-    AgentErrorEvent,
-    AgentEvent,
-    AgentFinishEvent,
-    AssistantTextEvent,
-    LoadingEvent,
-    ToolCallEndEvent,
-    ToolCallStartEvent,
-)
+from tap.events import AgentEvent
 from tap.harness import AgentHarness
 from tap.prompt import build_system_prompt
 from tap.providers.gemini import GeminiProvider
@@ -41,7 +33,7 @@ from tap.skills import load_skills, skill_roots
 from tap.storage import Session, SessionStore
 from tap.tools.bash import BashTool
 from tap.tools.edit import EditTool
-from tap.tools.plan import PlanTool, PlanState
+from tap.tools.plan import PlanState, PlanTool
 from tap.tools.read import ReadTool
 from tap.tools.registry import ToolRegistry
 from tap.tools.write import WriteTool
@@ -319,7 +311,7 @@ def _cmd_config(settings: Settings) -> None:
         value = getattr(settings, field)
         if field == "gemini_api_key":
             value = f"...{value[-4:]}"  # never print the full key
-        print(f"  {var:<20} {str(value):<24} ({sources[var]})")
+        print(f"  {var:<20} {value!s:<24} ({sources[var]})")
 
 
 def _cmd_sessions(store: SessionStore) -> None:
