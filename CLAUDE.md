@@ -37,3 +37,4 @@ Máy chính là Windows: `bash` tool của tap chạy qua `cmd.exe` (`shell=True
 
 - Làm theo nhánh + PR (`fix/...`, `feat/...`, `chore/...`), không commit thẳng vào `main`.
 - Mọi quy tắc git trong CLAUDE.md cá nhân (`~/.claude/CLAUDE.md`) vẫn áp dụng: xác nhận trước mỗi lệnh git không chỉ-đọc, luôn kiểm config, author/committer trước commit/push.
+- Máy công ty: repo này đặt `credential.helper` rỗng (local) và URL remote có `Hanjh2002@`, nên `git push` sẽ hỏi password → dán fine-grained token (chỉ cấp cho repo này). Không lưu credential cá nhân trên máy công ty. Gặp 403 thì kiểm `git config --show-origin --get-all credential.helper` và `git remote -v`.

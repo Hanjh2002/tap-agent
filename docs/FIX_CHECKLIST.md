@@ -39,9 +39,9 @@ Ký hiệu trạng thái: ☐ chưa làm · ◐ đang làm · ☑ đã merge
 
 ## PR 0 — Chuẩn bị
 
-- [ ] Commit các thay đổi đang dở ở `src/tap/cli.py` (dọn import, đổi `str(value)` thành `!s`) và `.env.example`, có thể dồn vào một PR `chore` riêng
+- [x] Commit các thay đổi đang dở ở `src/tap/cli.py` (dọn import, đổi `str(value)` thành `!s`) và `.env.example`, có thể dồn vào một PR `chore` riêng
 - [ ] Commit `CLAUDE.md` và file này lên nhánh `chore/add-claude-md`, mở PR rồi merge
-- [ ] Ghi lại baseline: `uv run pytest -q --durations=5` → 162 pass; `test_bash_timeout` khoảng 5s
+- [x] Ghi lại baseline: `uv run pytest -q --durations=5` → 162 pass trong 8.92s; `test_bash_timeout` 5.11s
 - [ ] Về máy cá nhân: clone repo, đặt `user.name`/`user.email` cho repo, chạy `uv sync` rồi `uv run pytest -q`
 
 ---
@@ -280,3 +280,4 @@ Ký hiệu trạng thái: ☐ chưa làm · ◐ đang làm · ☑ đã merge
 | Ngày | Máy | Việc đã làm | Học được |
 |---|---|---|---|
 | 2026-11-17 | công ty | Lập kế hoạch; xác nhận lại lỗi #1–#11 bằng chạy thử; phát hiện #1b | — |
+| 2026-11-17 | công ty | PR 0: baseline, tách 2 commit (code / tài liệu), đặt danh tính git local, cấu hình push bằng token cá nhân | Author (`user.name`/`email`) khác danh tính đăng nhập (credential); repo public chỉ cho đọc, ghi cần quyền collaborator; CRLF/LF với `autocrlf` |
